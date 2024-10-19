@@ -3,146 +3,139 @@ package com.example.calculator;
 import java.util.*;
 
 public class CalculatorCode {
+
     public String calculate(String str) {
-        Boolean isNum = false;
-        String number = str;
-        Boolean reverse = false;
+        boolean isNum;
+        boolean reverse = false;
         int intValue;
         double calculated;
         int i = 0;
-        int count = 0;
-        String op = "";
+        String op;
         Stack<Double> operand = new Stack<>();
         Stack<String> operator = new Stack<>();
 
-        if (number.substring(0, 1).equals("-")) {
-            number = "0 " + number;
+        // Handle negative numbers at the beginning
+        if (str.startsWith("-")) {
+            str = "0 " + str;
         }
+
+        // Validate that the expression starts and ends properly
         try {
-            if (!number.substring(0, 1).equals("(")) {
-                intValue = Integer.parseInt(number.substring(0, 1));
+            if (!str.startsWith("(") && !Character.isDigit(str.charAt(0))) {
+                throw new NumberFormatException("Invalid start of the equation.");
             }
-            if (!number.substring(number.length() - 1, number.length()).equals(")")) {
-                intValue = Integer.parseInt(number.substring(number.length() - 1, number.length()));
+            if (!str.endsWith(")") && !Character.isDigit(str.charAt(str.length() - 1))) {
+                throw new NumberFormatException("Invalid end of the equation.");
             }
         } catch (NumberFormatException e) {
-            System.out.println("The equation starts with an operator other than ( or - "
-                    + "OR it ends with an operator other than (");
+            System.out.println("The equation starts with an invalid operator or ends improperly.");
             System.exit(1);
         }
-        do {
-            if (i >= number.length() - 1) {
-                op = pickNum(number, i);
-                try {
-                    intValue = Integer.parseInt(op);
-                    isNum = true;
-                } catch (NumberFormatException e) {
-                    isNum = false;
-                }
-                if (isNum && !reverse) {
-                    operand.push((double) Integer.parseInt(op));
-                }
-                reverse = true;
-            } else {
-                op = pickNum(number, i);
-                if (op != null && !reverse) {
-                    i = i + op.length();
-                }
-                try { // checks if separated string is an operand or operator
-                    intValue = Integer.parseInt(op);
-                    isNum = true;
-                } catch (NumberFormatException e) {
-                    isNum = false;
-                }
+
+        while (i < str.length()) {
+            op = pickNum(str, i);
+            if (op == null) {
+                i++;
+                continue;
             }
-            if (!reverse) {
-                if (isNum) {
-                    operand.push((double) Integer.parseInt(op));
-                } else {
-                    if (op == null) {
-                        i++;
-                    } else if (op.equals("(")) {
-                        operator.push(op);
-                        count = 1;
-                    } else if (count == 1) {
-                        operator.push(op);
-                        count = 0;
-                    } else if (op.equals(")")) {
-                        reverse = true;
-                    } else if (!operator.empty() && precedence(operator.peek()) >= precedence(op)) {
-                        calculated = calculate(precedence(operator.peek()), operand.pop(),
-                                operand.pop(), operator.pop());
-                        operand.push(calculated);
-                        operator.push(op);
-                    } else {
-                        operator.push(op);
-                    }
-                }
+            i += op.length();
+
+            try {
+                intValue = Integer.parseInt(op);
+                isNum = true;
+            } catch (NumberFormatException e) {
+                isNum = false;
+            }
+
+            if (isNum) {
+                operand.push((double) intValue);
             } else {
-                if (!operator.empty() && operator.peek().equals("(")) {
-                    operator.pop();
-                    reverse = false;
-                } else if (!operator.empty()) {
-                    calculated = calculate(precedence(operator.peek()), operand.pop(), operand.pop(), operator.pop());
-                    if (operand.empty()) {
-                        if (!operator.empty()) {
-                            operand.push(calculated);
-                        } else {
-                            System.out.println(number + " = " + calculated);
-                            return Double.toString(calculated);
-                        }
-                    } else {
+                if (op.equals("(")) {
+                    operator.push(op);
+                } else if (op.equals(")")) {
+                    while (!operator.peek().equals("(")) {
+                        calculated = performOperation(operand, operator);
                         operand.push(calculated);
                     }
+                    operator.pop(); // Remove the "(" from the stack
                 } else {
+                    while (!operator.isEmpty() &&
+                           precedence(operator.peek()) >= precedence(op)) {
+                        calculated = performOperation(operand, operator);
+                        operand.push(calculated);
+                    }
+                    operator.push(op);
                 }
             }
-        } while (!reverse || !operand.empty());
-        return null;
+        }
+
+        // Evaluate remaining operations in the stacks
+        while (!operator.isEmpty()) {
+            calculated = performOperation(operand, operator);
+            operand.push(calculated);
+        }
+
+        // Final result
+        double result = operand.pop();
+        System.out.println(str + " = " + result);
+        return Double.toString(result);
     }
+
     public static String pickNum(String str, int startPoint) {
-        String num = "";
-        String operator = "";
+        StringBuilder num = new StringBuilder();
+        StringBuilder operator = new StringBuilder();
+
         for (int i = startPoint; i < str.length(); i++) {
             char value = str.charAt(i);
-            if (i == startPoint && !Character.isDigit(value)) {
+            if (i == startPoint && !Character.isDigit(value) && value != '-') {
                 if (value == ' ') {
                     return null;
                 } else {
-                    operator = operator + value;
-                    return operator;
+                    operator.append(value);
+                    return operator.toString();
                 }
             }
-            if (Character.isDigit(value)) {
-                num = num + value;
+            if (Character.isDigit(value) || value == '.') {
+                num.append(value);
             } else {
-                i = str.length();
+                break;
             }
         }
-        return num;
+        return num.toString();
     }
+
     public static int precedence(String operator) {
-        if (operator.equals("*") || operator.equals("/")) {
-            return 2;
-        } else if (operator.equals("+") || operator.equals("-")) {
-            return 1;
-        } else {
-            return 0;
+        switch (operator) {
+            case "*":
+            case "/":
+                return 2;
+            case "+":
+            case "-":
+                return 1;
+            default:
+                return 0;
         }
     }
-    public static double calculate(int level,  double operandTop, double operandBelow,  String operator) {
-        if (level == 2) {
-            if (operator.equals("*")) {
+
+    public static double performOperation(Stack<Double> operand, Stack<String> operator) {
+        double operandTop = operand.pop();
+        double operandBelow = operand.pop();
+        String op = operator.pop();
+
+        switch (op) {
+            case "*":
                 return operandBelow * operandTop;
-            } else {
+            case "/":
+                if (operandTop == 0) {
+                    throw new ArithmeticException("Division by zero.");
+                }
                 return operandBelow / operandTop;
-            }
-        } else {
-            if (operator.equals("+")) {
+            case "+":
                 return operandBelow + operandTop;
-            } else {
+            case "-":
                 return operandBelow - operandTop;
-            }
+            default:
+                throw new IllegalArgumentException("Invalid operator.");
         }
     }
 }
